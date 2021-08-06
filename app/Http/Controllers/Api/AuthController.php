@@ -2,24 +2,20 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
-use App\Http\Resources\RegisterResource;
 use App\Models\Token;
 use App\Models\User;
 use App\Traits\ApiResponse;
-use App\Traits\GenerateToken;
-use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-    use GenerateToken,ApiResponse;
-
-
+    use  ApiResponse;
+    public function __construct()
+    {
+        $this->middleware('auth:api', ['except' => ['login','register']]);
+    }
     public  function  register(RegisterRequest  $request): \Illuminate\Http\JsonResponse
     {
 
@@ -34,36 +30,82 @@ class AuthController extends Controller
         $user->phone = $request->phone;
         $user->save();
 
-        $token = new Token();
-        $token->token = $this->createToken();
-        $token->user_id = $user->id;
-        $token->save();
+        $credentials = request([$user->email, $user->password]);
+        $token = auth()->attempt($credentials);
 
-        $user['accessToken'] = $token->token;
+        $user['accessToken'] = $token;
         return $this->success($user,"Successfully Register.Please Login");
 
     }
+    /**
+     * Create a new AuthController instance.
+     *
+     * @return void
+     */
 
-    public  function  login(LoginRequest $request){
 
-        $email = $request->input('email');
-        $password = $request->input('password');
+    /**
+     * Get a JWT via given credentials.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function login()
+    {
+        $credentials = request(['email', 'password']);
 
-        $credential = User::where('email',$email)->first();
-
-        if(!$credential || !Hash::check($password,$credential->password)){
-            return $this->error('Invalid credentials');
+        if (! $token = auth()->attempt($credentials)) {
+            return $this->error("unauthenticated user");
         }
-        $updateToken = Token::where('user_id',$credential->id)->first();
-        $updateToken->token = $this->createToken();
-        $updateToken->revoked = "1";
-        $updateToken->save();
-
-        $credential['accessToken'] = $updateToken->token;
-        return $this->success($credential,'Successfully Login');
+        $user = auth()->user();
+        $user['accessToken'] = $token;
+        return $this->success($user,"Successfully Login.");
     }
 
-    public function  logout(){
-        Auth::logout();
+    /**
+     * Get the authenticated User.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function profile()
+    {
+        return $this->success(auth()->user(),"Profile");
+    }
+
+    /**
+     * Log the user out (Invalidate the token).
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function logout()
+    {
+        auth()->logout();
+        return  $this->success(null,'Successfully logged out');
+
+    }
+
+    /**
+     * Refresh a token.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function refresh()
+    {
+        return $this->respondWithToken(auth()->refresh());
+    }
+
+    /**
+     * Get the token array structure.
+     *
+     * @param  string $token
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    protected function respondWithToken($token)
+    {
+        return response()->json([
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => auth()->factory()->getTTL() * 60
+        ]);
     }
 }

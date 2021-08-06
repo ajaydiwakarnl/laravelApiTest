@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CompanyController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -13,11 +15,18 @@ use Illuminate\Support\Facades\Route;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
+Route::group(['middleware' => 'api', 'prefix' => 'v1'], function () {
+    //Auth Api
+        Route::post('register', [AuthController::class, 'register']);
+        Route::post('login', [AuthController::class, 'login']);
+        Route::post('profile', [AuthController::class, 'profile']);
+        Route::post('logout', [AuthController::class, 'logout']);
 
-Route::middleware('auth:api')->get('/user', function (Request $request) {
-    return $request->user();
+   //Company list
+
+    Route::group(['prefix' => 'company'], function() {
+        Route::get('list',[CompanyController::class,'index']);
+        Route::post('detail',[CompanyController::class,'detail']);
+    });
 });
 
-Route::post('register',[App\Http\Controllers\Api\AuthController::class,'register'])->name('register');
-Route::post('login',[App\Http\Controllers\Api\AuthController::class,'login'])->name('login');
-Route::post('logout',[App\Http\Controllers\Api\AuthController::class,'login'])->name('logout');
